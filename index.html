@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>License Plate Permit</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    :root {
+      --bg: #e8eef2;
+      --ink: #14202b;
+      --muted: #5a6b78;
+      --ok: #0f6b3c;
+      --ok-bg: #d8f3e4;
+      --bad: #9b1c1c;
+      --bad-bg: #fde2e2;
+      --line: #c5d0d8;
+      --card: #ffffff;
+      --accent: #1a5f8a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(ellipse at 10% 0%, #d4e4ef 0%, transparent 50%),
+        radial-gradient(ellipse at 90% 20%, #cfe0d8 0%, transparent 45%),
+        var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 1.25rem 1rem 3rem;
+    }
+    h1 {
+      font-size: 1.45rem;
+      margin: 0 0 .25rem;
+      letter-spacing: -.02em;
+    }
+    .sub { color: var(--muted); font-size: .9rem; margin-bottom: 1.25rem; }
+    .row {
+      display: flex;
+      gap: .5rem;
+      flex-wrap: wrap;
+      margin-bottom: .75rem;
+    }
+    input[type="text"] {
+      flex: 1;
+      min-width: 160px;
+      padding: .7rem .85rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 1.15rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      background: var(--card);
+    }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: .7rem 1rem;
+      font-size: .95rem;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    button.secondary { background: #3d4f5c; }
+    button.danger { background: var(--bad); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    #cameraBox {
+      display: none;
+      margin: .75rem 0 1rem;
+      background: #0b1218;
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    #cameraBox.active { display: block; }
+    video, #snap {
+      width: 100%;
+      display: block;
+      max-height: 320px;
+      object-fit: cover;
+    }
+    #snap { display: none; }
+    .cam-actions {
+      display: flex;
+      gap: .5rem;
+      padding: .6rem;
+      background: #111a22;
+    }
+    #result {
+      display: none;
+      padding: 1rem;
+      border-radius: 10px;
+      margin: 1rem 0;
+      border: 1px solid transparent;
+    }
+    #result.show { display: block; }
+    #result.ok { background: var(--ok-bg); border-color: #9ad4b4; color: var(--ok); }
+    #result.bad { background: var(--bad-bg); border-color: #f0b0b0; color: var(--bad); }
+    #result .plate {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+    }
+    #result .meta { margin-top: .35rem; font-size: .95rem; }
+    h2 {
+      font-size: 1.05rem;
+      margin: 1.5rem 0 .6rem;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: .75rem .9rem;
+      margin-bottom: .5rem;
+    }
+    .item.expired { border-color: #e08a8a; background: #fff5f5; }
+    .item .p {
+      font-weight: 700;
+      letter-spacing: .06em;
+      font-size: 1.05rem;
+    }
+    .item .t {
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+      font-size: .92rem;
+    }
+    .item.expired .t { color: var(--bad); font-weight: 700; }
+    .empty { color: var(--muted); font-size: .92rem; }
+    #status { color: var(--muted); font-size: .85rem; min-height: 1.2em; margin: .25rem 0 .5rem; }
+    details {
+      margin-top: 1.5rem;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: .75rem 1rem;
+    }
+    details summary { cursor: pointer; font-weight: 600; }
+    .cat { margin: .75rem 0; }
+    .cat b { display: block; margin-bottom: .25rem; }
+    .cat span {
+      display: inline-block;
+      background: #eef3f6;
+      border-radius: 4px;
+      padding: .15rem .4rem;
+      margin: .15rem .2rem 0 0;
+      font-size: .8rem;
+      letter-spacing: .04em;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>License Plate Permit</h1>
+    <p class="sub">Check permit · mark no-permit with 2-hour timer</p>
+
+    <div class="row">
+      <input id="plate" type="text" placeholder="Enter plate" autocomplete="off" />
+      <button id="checkBtn" type="button">Check</button>
+      <button id="scanBtn" type="button" class="secondary">Scan</button>
+    </div>
+    <div id="status"></div>
+
+    <div id="cameraBox">
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="snap"></canvas>
+      <div class="cam-actions">
+        <button id="captureBtn" type="button">Capture</button>
+        <button id="closeCamBtn" type="button" class="secondary">Close</button>
+      </div>
+    </div>
+
+    <div id="result"></div>
+
+    <h2>No permit (2-hour)</h2>
+    <div id="noPermitList"><p class="empty">None</p></div>
+
+    <details>
+      <summary>Permit list</summary>
+      <div id="permitBrowse"></div>
+    </details>
+  </main>
+
+  <script>
+    const PERMITS = {
+      "TAI NAM": [
+        "DT69485","DEB650","G62469","L141810","CH38534","C414736","Q810903",
+        "6893368","DU3500","N230963","EJ46350","CZ13234","AT50779","ZU89687",
+        "AK30545","DA97586","FC84182","9CPC706","EC44828","EB97941","AE61242","EQ34950"
+      ],
+      "LYNAMY": [
+        "CE12665","AR15846","BT25189","EA86285","DM45617","EA49434","AY46141",
+        "DB96722","FM60108","AR25354","AT42183","CC55865","V633110","C7603EL"
+      ],
+      "PHO VIET": ["AV79973"],
+      "Tina": ["EF26988"],
+      "Le, Tam": ["BF60353"],
+      "Nguyen, Thuy Minh": ["FR96854"],
+      "Ho, Lieu": ["Z977833"],
+      "American Metro Bank": [
+        "EK47459","BH56649","A4527EL","DQ54956","Z340036","R185590","L409136","EP19587"
+      ],
+      "Parents": [
+        "CX44955","CJ40331","BT21234","EU84762","EU56434","FR92061","DXBQ77"
+      ],
+      "PORR, PETER": [
+        "31766CV","37129CV","35819CV","AU94853"
+      ],
+      "Staff": [
+        "L476742","FG24759","6499791","EE98203","E423176","EH69703","CY79924",
+        "FH83593","ZX94543","AY54341","AHD6836","EP52891","Y711065","GA74745",
+        "ZHUYU88","FD94877","DE46098","ER75463","DW19611","CY46783","DA47001","AX44302"
+      ]
+    };
+
+    const TWO_HOURS = 2 * 60 * 60 * 1000;
+    const STORE_KEY = "noPermitPlates_v1";
+
+    function normalize(raw) {
+      return String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    }
+
+    function buildIndex() {
+      const map = new Map();
+      for (const [cat, plates] of Object.entries(PERMITS)) {
+        for (const p of plates) {
+          const n = normalize(p);
+          if (!n) continue;
+          if (!map.has(n)) map.set(n, []);
+          const cats = map.get(n);
+          if (!cats.includes(cat)) cats.push(cat);
+        }
+      }
+      return map;
+    }
+
+    const INDEX = buildIndex();
+
+    function loadNoPermit() {
+      try {
+        const raw = localStorage.getItem(STORE_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveNoPermit(list) {
+      localStorage.setItem(STORE_KEY, JSON.stringify(list));
+    }
+
+    function formatRemain(ms) {
+      if (ms <= 0) return "EXPIRED";
+      const s = Math.floor(ms / 1000);
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+    }
+
+    const plateInput = document.getElementById("plate");
+    const resultEl = document.getElementById("result");
+    const listEl = document.getElementById("noPermitList");
+    const statusEl = document.getElementById("status");
+    const cameraBox = document.getElementById("cameraBox");
+    const video = document.getElementById("video");
+    const snap = document.getElementById("snap");
+    let stream = null;
+    let worker = null;
+
+    function setStatus(msg) {
+      statusEl.textContent = msg || "";
+    }
+
+    function showResult(ok, plate, detail) {
+      resultEl.className = "show " + (ok ? "ok" : "bad");
+      resultEl.innerHTML = `<div class="plate">${plate}</div><div class="meta">${detail}</div>`;
+    }
+
+    function checkPlate(raw) {
+      const plate = normalize(raw);
+      if (!plate) {
+        setStatus("Enter a plate");
+        return;
+      }
+      plateInput.value = plate;
+      const cats = INDEX.get(plate);
+      if (cats) {
+        showResult(true, plate, "PERMITTED — " + cats.join(", "));
+        setStatus("");
+        return;
+      }
+      let list = loadNoPermit();
+      const existing = list.find((x) => x.plate === plate);
+      if (existing) {
+        const left = existing.expiresAt - Date.now();
+        showResult(false, plate, "NO PERMIT — already tracked · " + formatRemain(left));
+      } else {
+        const entry = { plate, startedAt: Date.now(), expiresAt: Date.now() + TWO_HOURS };
+        list.unshift(entry);
+        saveNoPermit(list);
+        showResult(false, plate, "NO PERMIT — 2-hour countdown started");
+      }
+      setStatus("");
+      renderList();
+    }
+
+    function removePlate(plate) {
+      saveNoPermit(loadNoPermit().filter((x) => x.plate !== plate));
+      renderList();
+    }
+
+    function renderList() {
+      const list = loadNoPermit();
+      if (!list.length) {
+        listEl.innerHTML = '<p class="empty">None</p>';
+        return;
+      }
+      const now = Date.now();
+      listEl.innerHTML = "<ul>" + list.map((x) => {
+        const left = x.expiresAt - now;
+        const expired = left <= 0;
+        return `<li class="item${expired ? " expired" : ""}" data-plate="${x.plate}">
+          <div>
+            <div class="p">${x.plate}</div>
+            <div class="t">${formatRemain(left)}</div>
+          </div>
+          <button type="button" class="danger removeBtn">Remove</button>
+        </li>`;
+      }).join("") + "</ul>";
+      listEl.querySelectorAll(".removeBtn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          removePlate(btn.closest(".item").dataset.plate);
+        });
+      });
+    }
+
+    function renderPermitBrowse() {
+      const el = document.getElementById("permitBrowse");
+      el.innerHTML = Object.entries(PERMITS).map(([cat, plates]) => {
+        const uniq = [...new Set(plates.map(normalize))];
+        return `<div class="cat"><b>${cat} (${uniq.length})</b>${uniq.map((p) => `<span>${p}</span>`).join("")}</div>`;
+      }).join("");
+    }
+
+    async function openCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+        video.srcObject = stream;
+        cameraBox.classList.add("active");
+        setStatus("Point at plate, then Capture");
+      } catch (e) {
+        setStatus("Camera unavailable — type the plate instead");
+      }
+    }
+
+    function closeCamera() {
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+      cameraBox.classList.remove("active");
+    }
+
+    async function captureAndOcr() {
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if (!w || !h) {
+        setStatus("Camera not ready");
+        return;
+      }
+      snap.width = w;
+      snap.height = h;
+      const ctx = snap.getContext("2d");
+      ctx.drawImage(video, 0, 0, w, h);
+      setStatus("Reading plate…");
+      document.getElementById("captureBtn").disabled = true;
+      try {
+        if (!worker) {
+          worker = await Tesseract.createWorker("eng");
+          await worker.setParameters({
+            tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
+          });
+        }
+        const { data: { text } } = await worker.recognize(snap);
+        const candidates = text.toUpperCase().match(/[A-Z0-9]{5,8}/g) || [];
+        const plate = candidates.map(normalize).filter((p) => p.length >= 5).sort((a,b) => b.length - a.length)[0];
+        if (!plate) {
+          setStatus("Could not read plate — type it");
+        } else {
+          closeCamera();
+          checkPlate(plate);
+        }
+      } catch (e) {
+        setStatus("OCR failed — type the plate");
+      } finally {
+        document.getElementById("captureBtn").disabled = false;
+      }
+    }
+
+    document.getElementById("checkBtn").addEventListener("click", () => checkPlate(plateInput.value));
+    plateInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") checkPlate(plateInput.value);
+    });
+    document.getElementById("scanBtn").addEventListener("click", openCamera);
+    document.getElementById("closeCamBtn").addEventListener("click", () => {
+      closeCamera();
+      setStatus("");
+    });
+    document.getElementById("captureBtn").addEventListener("click", captureAndOcr);
+
+    renderPermitBrowse();
+    renderList();
+    setInterval(renderList, 1000);
+  </script>
+</body>
+</html>
