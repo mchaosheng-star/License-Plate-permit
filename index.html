@@ -2,9 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>License Plate Permit</title>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root {
       --bg: #e8eef2;
@@ -29,24 +28,11 @@
       color: var(--ink);
       min-height: 100vh;
     }
-    main {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 1.25rem 1rem 3rem;
-    }
-    h1 {
-      font-size: 1.45rem;
-      margin: 0 0 .25rem;
-      letter-spacing: -.02em;
-    }
+    main { max-width: 720px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.45rem; margin: 0 0 .25rem; letter-spacing: -.02em; }
     .sub { color: var(--muted); font-size: .9rem; margin-bottom: 1.25rem; }
-    .row {
-      display: flex;
-      gap: .5rem;
-      flex-wrap: wrap;
-      margin-bottom: .75rem;
-    }
-    input[type="text"] {
+    .row { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    input[type="text"], input[type="password"] {
       flex: 1;
       min-width: 160px;
       padding: .7rem .85rem;
@@ -57,6 +43,7 @@
       text-transform: uppercase;
       background: var(--card);
     }
+    input[type="password"] { text-transform: none; letter-spacing: normal; font-size: .95rem; }
     button {
       border: 0;
       border-radius: 8px;
@@ -70,6 +57,38 @@
     button.secondary { background: #3d4f5c; }
     button.danger { background: var(--bad); }
     button:disabled { opacity: .55; cursor: not-allowed; }
+    #status { color: var(--muted); font-size: .85rem; min-height: 1.2em; margin: .25rem 0 .5rem; }
+    #candidates {
+      display: none;
+      flex-wrap: wrap;
+      gap: .4rem;
+      margin: .5rem 0 .75rem;
+    }
+    #candidates.show { display: flex; }
+    #candidates button { background: #254556; letter-spacing: .06em; font-size: 1rem; }
+    #previewWrap {
+      display: none;
+      margin: .5rem 0 1rem;
+      background: #0b1218;
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    #previewWrap.show { display: block; }
+    #previewWrap img { width: 100%; display: block; max-height: 360px; object-fit: contain; background: #000; }
+    #previewWrap .cam-x {
+      position: absolute;
+      top: .45rem;
+      right: .45rem;
+      z-index: 2;
+      width: 2.2rem;
+      height: 2.2rem;
+      padding: 0;
+      border-radius: 999px;
+      background: rgba(20, 28, 36, .85);
+      font-size: 1.2rem;
+      line-height: 1;
+    }
     #cameraBox {
       display: none;
       margin: .75rem 0 1rem;
@@ -87,47 +106,39 @@
       object-fit: contain;
       background: #000;
     }
-    #snap, #cropPreview {
-      display: none;
-      width: 100%;
-      max-height: 120px;
-      object-fit: contain;
-      background: #000;
-      margin-top: .4rem;
-    }
-    #cropPreview.show { display: block; }
-    #candidates {
-      display: none;
-      flex-wrap: wrap;
-      gap: .4rem;
-      margin: .5rem 0 .75rem;
-    }
-    #candidates.show { display: flex; }
-    #candidates button {
-      background: #254556;
-      letter-spacing: .06em;
-      font-size: 1rem;
-    }
     .guide {
       position: absolute;
-      left: 8%;
-      right: 8%;
-      top: 38%;
-      height: 22%;
+      left: 6%;
+      right: 6%;
+      top: 30%;
+      height: 34%;
       border: 2px solid #7dd3fc;
       border-radius: 6px;
-      box-shadow: 0 0 0 9999px rgba(0,0,0,.45);
+      box-shadow: 0 0 0 9999px rgba(0,0,0,.4);
       pointer-events: none;
     }
     .guide-hint {
       position: absolute;
       left: 0; right: 0;
-      top: calc(38% + 22% + 8px);
+      bottom: .7rem;
       text-align: center;
       color: #e8f4ff;
       font-size: .8rem;
       text-shadow: 0 1px 2px #000;
       pointer-events: none;
+    }
+    .cam-x {
+      position: absolute;
+      top: .45rem;
+      right: .45rem;
+      z-index: 2;
+      width: 2.2rem;
+      height: 2.2rem;
+      padding: 0;
+      border-radius: 999px;
+      background: rgba(20, 28, 36, .85);
+      font-size: 1.2rem;
+      line-height: 1;
     }
     .cam-actions {
       display: flex;
@@ -146,21 +157,10 @@
     #result.show { display: block; }
     #result.ok { background: var(--ok-bg); border-color: #9ad4b4; color: var(--ok); }
     #result.bad { background: var(--bad-bg); border-color: #f0b0b0; color: var(--bad); }
-    #result .plate {
-      font-size: 1.6rem;
-      font-weight: 700;
-      letter-spacing: .08em;
-    }
+    #result .plate { font-size: 1.6rem; font-weight: 700; letter-spacing: .08em; }
     #result .meta { margin-top: .35rem; font-size: .95rem; }
-    h2 {
-      font-size: 1.05rem;
-      margin: 1.5rem 0 .6rem;
-    }
-    ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
+    h2 { font-size: 1.05rem; margin: 1.5rem 0 .6rem; }
+    ul { list-style: none; padding: 0; margin: 0; }
     .item {
       display: flex;
       align-items: center;
@@ -173,19 +173,10 @@
       margin-bottom: .5rem;
     }
     .item.expired { border-color: #e08a8a; background: #fff5f5; }
-    .item .p {
-      font-weight: 700;
-      letter-spacing: .06em;
-      font-size: 1.05rem;
-    }
-    .item .t {
-      font-variant-numeric: tabular-nums;
-      color: var(--muted);
-      font-size: .92rem;
-    }
+    .item .p { font-weight: 700; letter-spacing: .06em; font-size: 1.05rem; }
+    .item .t { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .92rem; }
     .item.expired .t { color: var(--bad); font-weight: 700; }
     .empty { color: var(--muted); font-size: .92rem; }
-    #status { color: var(--muted); font-size: .85rem; min-height: 1.2em; margin: .25rem 0 .5rem; }
     details {
       margin-top: 1.5rem;
       background: var(--card);
@@ -205,6 +196,8 @@
       font-size: .8rem;
       letter-spacing: .04em;
     }
+    .hint { color: var(--muted); font-size: .85rem; margin: .4rem 0 .75rem; line-height: 1.4; }
+    .hint a { color: var(--accent); }
   </style>
 </head>
 <body>
@@ -213,26 +206,30 @@
     <p class="sub">Check permit · mark no-permit with 2-hour timer</p>
 
     <div class="row">
-      <input id="plate" type="text" placeholder="Enter plate" autocomplete="off" />
+      <input id="plate" type="text" placeholder="Enter plate" autocomplete="off" enterkeyhint="done" />
       <button id="checkBtn" type="button">Check</button>
       <button id="scanBtn" type="button" class="secondary">Scan</button>
       <input id="fileScan" type="file" accept="image/*" capture="environment" hidden />
     </div>
     <div id="status"></div>
     <div id="candidates"></div>
-    <img id="cropPreview" alt="" />
+
+    <div id="previewWrap">
+      <button id="closePreview" type="button" class="cam-x" aria-label="Close">×</button>
+      <img id="cropPreview" alt="Captured plate" />
+    </div>
 
     <div id="cameraBox">
       <div class="cam-stage">
-        <video id="video" playsinline autoplay muted></video>
+        <button id="closeCamX" type="button" class="cam-x" aria-label="Close camera">×</button>
+        <video id="video" playsinline webkit-playsinline autoplay muted></video>
         <div class="guide"></div>
-        <div class="guide-hint">Fit plate inside the box</div>
+        <div class="guide-hint">Fill the box with the plate</div>
       </div>
-      <canvas id="snap"></canvas>
       <div class="cam-actions">
         <button id="captureBtn" type="button">Capture</button>
-        <button id="photoBtn" type="button" class="secondary">Use photo</button>
-        <button id="closeCamBtn" type="button" class="secondary">Close</button>
+        <button id="photoBtn" type="button" class="secondary">Take photo</button>
+        <button id="closeCamBtn" type="button" class="danger">Close camera</button>
       </div>
     </div>
 
@@ -240,6 +237,16 @@
 
     <h2>No permit (2-hour)</h2>
     <div id="noPermitList"><p class="empty">None</p></div>
+
+    <details id="apiSettings">
+      <summary>Scan setup (required for auto-read)</summary>
+      <p class="hint">Phone OCR cannot read plates well. Free Plate Recognizer token (~2500 scans/month): <a href="https://app.platerecognizer.com/accounts/signup/" target="_blank" rel="noopener">sign up</a> → copy API Token → paste below.</p>
+      <div class="row">
+        <input id="apiToken" type="password" placeholder="Plate Recognizer API token" autocomplete="off" />
+        <button id="saveToken" type="button">Save</button>
+      </div>
+      <div id="tokenStatus" class="hint"></div>
+    </details>
 
     <details>
       <summary>Permit list</summary>
@@ -281,6 +288,7 @@
 
     const TWO_HOURS = 2 * 60 * 60 * 1000;
     const STORE_KEY = "noPermitPlates_v1";
+    const TOKEN_KEY = "plateRecognizerToken";
 
     function normalize(raw) {
       return String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -301,6 +309,29 @@
     }
 
     const INDEX = buildIndex();
+    const plateInput = document.getElementById("plate");
+    const resultEl = document.getElementById("result");
+    const listEl = document.getElementById("noPermitList");
+    const statusEl = document.getElementById("status");
+    const cameraBox = document.getElementById("cameraBox");
+    const video = document.getElementById("video");
+    const previewWrap = document.getElementById("previewWrap");
+    const cropPreview = document.getElementById("cropPreview");
+    let stream = null;
+
+    function getToken() {
+      return (localStorage.getItem(TOKEN_KEY) || "").trim();
+    }
+
+    function setStatus(msg) {
+      statusEl.textContent = msg || "";
+    }
+
+    function refreshTokenStatus() {
+      const el = document.getElementById("tokenStatus");
+      el.textContent = getToken() ? "Token saved — Scan can auto-read plates." : "No token — Scan shows photo; type the plate.";
+      document.getElementById("apiToken").value = getToken();
+    }
 
     function loadNoPermit() {
       try {
@@ -325,20 +356,6 @@
       return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
     }
 
-    const plateInput = document.getElementById("plate");
-    const resultEl = document.getElementById("result");
-    const listEl = document.getElementById("noPermitList");
-    const statusEl = document.getElementById("status");
-    const cameraBox = document.getElementById("cameraBox");
-    const video = document.getElementById("video");
-    const snap = document.getElementById("snap");
-    let stream = null;
-    let worker = null;
-
-    function setStatus(msg) {
-      statusEl.textContent = msg || "";
-    }
-
     function showResult(ok, plate, detail) {
       resultEl.className = "show " + (ok ? "ok" : "bad");
       resultEl.innerHTML = `<div class="plate">${plate}</div><div class="meta">${detail}</div>`;
@@ -360,11 +377,9 @@
       let list = loadNoPermit();
       const existing = list.find((x) => x.plate === plate);
       if (existing) {
-        const left = existing.expiresAt - Date.now();
-        showResult(false, plate, "NO PERMIT — already tracked · " + formatRemain(left));
+        showResult(false, plate, "NO PERMIT — already tracked · " + formatRemain(existing.expiresAt - Date.now()));
       } else {
-        const entry = { plate, startedAt: Date.now(), expiresAt: Date.now() + TWO_HOURS };
-        list.unshift(entry);
+        list.unshift({ plate, startedAt: Date.now(), expiresAt: Date.now() + TWO_HOURS });
         saveNoPermit(list);
         showResult(false, plate, "NO PERMIT — 2-hour countdown started");
       }
@@ -396,106 +411,15 @@
         </li>`;
       }).join("") + "</ul>";
       listEl.querySelectorAll(".removeBtn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          removePlate(btn.closest(".item").dataset.plate);
-        });
+        btn.addEventListener("click", () => removePlate(btn.closest(".item").dataset.plate));
       });
     }
 
     function renderPermitBrowse() {
-      const el = document.getElementById("permitBrowse");
-      el.innerHTML = Object.entries(PERMITS).map(([cat, plates]) => {
+      document.getElementById("permitBrowse").innerHTML = Object.entries(PERMITS).map(([cat, plates]) => {
         const uniq = [...new Set(plates.map(normalize))];
         return `<div class="cat"><b>${cat} (${uniq.length})</b>${uniq.map((p) => `<span>${p}</span>`).join("")}</div>`;
       }).join("");
-    }
-
-    function makeVariant(src, mode) {
-      const scale = 2.5;
-      const out = document.createElement("canvas");
-      out.width = Math.max(1, Math.round(src.width * scale));
-      out.height = Math.max(1, Math.round(src.height * scale));
-      const ctx = out.getContext("2d");
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(src, 0, 0, out.width, out.height);
-      const img = ctx.getImageData(0, 0, out.width, out.height);
-      const d = img.data;
-      let min = 255, max = 0;
-      const gray = new Float32Array(out.width * out.height);
-      for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-        const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        gray[p] = g;
-        if (g < min) min = g;
-        if (g > max) max = g;
-      }
-      const range = Math.max(1, max - min);
-      for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-        let g = ((gray[p] - min) / range) * 255;
-        if (mode === "bin") g = g > 128 ? 255 : 0;
-        else if (mode === "binInv") g = g > 128 ? 0 : 255;
-        else if (mode === "inv") g = 255 - g;
-        d[i] = d[i + 1] = d[i + 2] = g;
-        d[i + 3] = 255;
-      }
-      ctx.putImageData(img, 0, 0);
-      return out;
-    }
-
-    function extractCandidates(text) {
-      const found = new Set();
-      const up = String(text || "").toUpperCase();
-      const parts = up.match(/[A-Z0-9][A-Z0-9 \-]{3,14}[A-Z0-9]/g) || [];
-      for (const s of parts) {
-        const n = normalize(s);
-        if (n.length >= 5 && n.length <= 8) found.add(n);
-      }
-      const raw = normalize(up);
-      for (let len = 8; len >= 5; len--) {
-        for (let i = 0; i <= raw.length - len; i++) found.add(raw.slice(i, i + len));
-      }
-      return [...found];
-    }
-
-    function editDist(a, b) {
-      if (Math.abs(a.length - b.length) > 2) return 99;
-      const m = a.length, n = b.length;
-      const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-      for (let i = 0; i <= m; i++) dp[i][0] = i;
-      for (let j = 0; j <= n; j++) dp[0][j] = j;
-      for (let i = 1; i <= m; i++) {
-        for (let j = 1; j <= n; j++) {
-          dp[i][j] = a[i - 1] === b[j - 1]
-            ? dp[i - 1][j - 1]
-            : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-        }
-      }
-      return dp[m][n];
-    }
-
-    function scoreCandidate(p) {
-      let score = p.length;
-      if (INDEX.has(p)) score += 200;
-      else {
-        for (const known of INDEX.keys()) {
-          const d = editDist(p, known);
-          if (d === 1) { score += 80; break; }
-          if (d === 2) { score += 30; break; }
-        }
-      }
-      if (/[A-Z]/.test(p) && /\d/.test(p)) score += 12;
-      if (/^[A-Z]+$/.test(p) || /^\d+$/.test(p)) score -= 10;
-      return score;
-    }
-
-    function rankPlates(texts) {
-      const all = new Set();
-      for (const t of texts) extractCandidates(t).forEach((p) => all.add(p));
-      for (const p of [...all]) {
-        for (const known of INDEX.keys()) {
-          if (editDist(p, known) <= 1) all.add(known);
-        }
-      }
-      return [...all].sort((a, b) => scoreCandidate(b) - scoreCandidate(a)).slice(0, 6);
     }
 
     function showCandidates(list) {
@@ -509,102 +433,89 @@
       box.innerHTML = list.map((p) => `<button type="button" data-p="${p}">${p}</button>`).join("");
       box.querySelectorAll("button").forEach((btn) => {
         btn.addEventListener("click", () => {
-          plateInput.value = btn.dataset.p;
           checkPlate(btn.dataset.p);
           showCandidates([]);
         });
       });
     }
 
-    function guideCropFromVideo() {
-      const vw = video.videoWidth;
-      const vh = video.videoHeight;
-      const dispW = video.clientWidth;
-      const dispH = video.clientHeight;
-      const scale = Math.min(dispW / vw, dispH / vh);
-      const drawnW = vw * scale;
-      const drawnH = vh * scale;
-      const offsetX = (dispW - drawnW) / 2;
-      const offsetY = (dispH - drawnH) / 2;
-      const gx = dispW * 0.08;
-      const gy = dispH * 0.38;
-      const gw = dispW * 0.84;
-      const gh = dispH * 0.22;
-      let sx = (gx - offsetX) / scale;
-      let sy = (gy - offsetY) / scale;
-      let sw = gw / scale;
-      let sh = gh / scale;
-      sx = Math.max(0, Math.min(vw - 1, sx));
-      sy = Math.max(0, Math.min(vh - 1, sy));
-      sw = Math.max(10, Math.min(vw - sx, sw));
-      sh = Math.max(10, Math.min(vh - sy, sh));
-      return { sx, sy, sw, sh };
+    function showPreviewUrl(url) {
+      cropPreview.src = url;
+      previewWrap.classList.add("show");
     }
 
-    async function ensureWorker() {
-      if (!worker) {
-        setStatus("Loading OCR…");
-        worker = await Tesseract.createWorker("eng");
+    function hidePreview() {
+      previewWrap.classList.remove("show");
+      cropPreview.removeAttribute("src");
+    }
+
+    function canvasToBlob(canvas) {
+      return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/jpeg", 0.92));
+    }
+
+    async function readPlatesFromBlob(blob) {
+      const token = getToken();
+      if (!token) return [];
+      const fd = new FormData();
+      fd.append("upload", blob, "plate.jpg");
+      fd.append("regions", "us");
+      const res = await fetch("https://api.platerecognizer.com/v1/plate-reader/", {
+        method: "POST",
+        headers: { Authorization: "Token " + token },
+        body: fd
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(res.status + " " + t.slice(0, 120));
       }
-      return worker;
+      const data = await res.json();
+      const plates = (data.results || [])
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .map((r) => normalize(r.plate))
+        .filter((p) => p.length >= 4);
+      return [...new Set(plates)];
     }
 
-    async function ocrCanvas(src) {
-      const w = await ensureWorker();
-      const variants = [
-        makeVariant(src, "contrast"),
-        makeVariant(src, "bin"),
-        makeVariant(src, "binInv"),
-        makeVariant(src, "inv")
-      ];
-      const texts = [];
-      for (const canvas of variants) {
-        for (const psm of ["7", "8", "13"]) {
-          await w.setParameters({
-            tessedit_pageseg_mode: psm,
-            tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-          });
-          const { data: { text } } = await w.recognize(canvas);
-          if (text && text.trim()) texts.push(text);
-        }
+    async function processImageBlob(blob) {
+      showPreviewUrl(URL.createObjectURL(blob));
+      showCandidates([]);
+      plateInput.focus();
+
+      if (!getToken()) {
+        setStatus("Type the plate from the photo (or add API token in Scan setup)");
+        document.getElementById("apiSettings").open = true;
+        return;
       }
-      return texts;
-    }
 
-    function showPreview(canvas) {
-      const img = document.getElementById("cropPreview");
-      img.src = canvas.toDataURL("image/jpeg", 0.9);
-      img.className = "show";
-    }
-
-    async function runOcrOnCanvas(crop) {
-      showPreview(crop);
       setStatus("Reading plate…");
-      document.getElementById("captureBtn").disabled = true;
       document.getElementById("scanBtn").disabled = true;
+      document.getElementById("captureBtn").disabled = true;
       try {
-        const texts = await ocrCanvas(crop);
-        const ranked = rankPlates(texts);
-        if (!ranked.length) {
-          setStatus("No plate found — type it, or retake closer / brighter");
-          showCandidates([]);
+        const plates = await readPlatesFromBlob(blob);
+        if (!plates.length) {
+          setStatus("No plate found — type it from the photo");
           return;
         }
-        plateInput.value = ranked[0];
-        showCandidates(ranked);
-        setStatus("Tap a result below, or edit and Check");
-        plateInput.focus();
+        plateInput.value = plates[0];
+        showCandidates(plates);
+        setStatus("Tap a result, or edit and Check");
         plateInput.select();
       } catch (e) {
-        setStatus("OCR failed — type the plate");
+        setStatus("Read failed — type from photo. Check API token.");
+        document.getElementById("apiSettings").open = true;
       } finally {
-        document.getElementById("captureBtn").disabled = false;
         document.getElementById("scanBtn").disabled = false;
+        document.getElementById("captureBtn").disabled = false;
       }
     }
 
     async function openCamera() {
       showCandidates([]);
+      hidePreview();
+      if (!getToken()) {
+        document.getElementById("fileScan").click();
+        return;
+      }
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -615,8 +526,9 @@
           audio: false
         });
         video.srcObject = stream;
+        await video.play().catch(() => {});
         cameraBox.classList.add("active");
-        setStatus("Fit plate in the blue box, then Capture");
+        setStatus("Fill box with plate, then Capture");
       } catch (e) {
         document.getElementById("fileScan").click();
       }
@@ -631,38 +543,24 @@
       cameraBox.classList.remove("active");
     }
 
-    async function captureAndOcr() {
-      if (!video.videoWidth) {
-        setStatus("Camera not ready");
+    async function captureFullFrame() {
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if (!w || !h) {
+        setStatus("Camera not ready — wait a second");
         return;
       }
-      const { sx, sy, sw, sh } = guideCropFromVideo();
-      const crop = document.createElement("canvas");
-      crop.width = Math.round(sw);
-      crop.height = Math.round(sh);
-      crop.getContext("2d").drawImage(video, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
-      closeCamera();
-      await runOcrOnCanvas(crop);
-    }
-
-    async function ocrFromFile(file) {
-      if (!file) return;
-      closeCamera();
-      const bmp = await createImageBitmap(file);
       const canvas = document.createElement("canvas");
-      canvas.width = bmp.width;
-      canvas.height = bmp.height;
-      canvas.getContext("2d").drawImage(bmp, 0, 0);
-      bmp.close();
-      const band = document.createElement("canvas");
-      const y0 = Math.floor(canvas.height * 0.25);
-      const h = Math.floor(canvas.height * 0.5);
-      const x0 = Math.floor(canvas.width * 0.05);
-      const w = Math.floor(canvas.width * 0.9);
-      band.width = w;
-      band.height = h;
-      band.getContext("2d").drawImage(canvas, x0, y0, w, h, 0, 0, w, h);
-      await runOcrOnCanvas(band);
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(video, 0, 0, w, h);
+      closeCamera();
+      const blob = await canvasToBlob(canvas);
+      if (!blob) {
+        setStatus("Capture failed");
+        return;
+      }
+      await processImageBlob(blob);
     }
 
     document.getElementById("checkBtn").addEventListener("click", () => checkPlate(plateInput.value));
@@ -673,17 +571,32 @@
     document.getElementById("photoBtn").addEventListener("click", () => {
       document.getElementById("fileScan").click();
     });
-    document.getElementById("fileScan").addEventListener("change", (e) => {
+    document.getElementById("fileScan").addEventListener("change", async (e) => {
       const f = e.target.files && e.target.files[0];
       e.target.value = "";
-      ocrFromFile(f);
+      if (!f) return;
+      closeCamera();
+      await processImageBlob(f);
     });
+    document.getElementById("captureBtn").addEventListener("click", captureFullFrame);
     document.getElementById("closeCamBtn").addEventListener("click", () => {
       closeCamera();
       setStatus("");
     });
-    document.getElementById("captureBtn").addEventListener("click", captureAndOcr);
+    document.getElementById("closeCamX").addEventListener("click", () => {
+      closeCamera();
+      setStatus("");
+    });
+    document.getElementById("closePreview").addEventListener("click", hidePreview);
+    document.getElementById("saveToken").addEventListener("click", () => {
+      const v = document.getElementById("apiToken").value.trim();
+      if (v) localStorage.setItem(TOKEN_KEY, v);
+      else localStorage.removeItem(TOKEN_KEY);
+      refreshTokenStatus();
+      setStatus(v ? "Token saved" : "Token cleared");
+    });
 
+    refreshTokenStatus();
     renderPermitBrowse();
     renderList();
     setInterval(renderList, 1000);
