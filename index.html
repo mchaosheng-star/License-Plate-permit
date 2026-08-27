@@ -163,7 +163,7 @@
     ul { list-style: none; padding: 0; margin: 0; }
     .item {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
       gap: .75rem;
       background: var(--card);
@@ -171,6 +171,60 @@
       border-radius: 10px;
       padding: .75rem .9rem;
       margin-bottom: .5rem;
+    }
+    .item-main { display: flex; gap: .65rem; align-items: flex-start; min-width: 0; flex: 1; }
+    .item .thumb {
+      width: 72px;
+      height: 54px;
+      object-fit: cover;
+      border-radius: 6px;
+      background: #111;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .item .no-photo {
+      width: 72px;
+      height: 54px;
+      border-radius: 6px;
+      background: #eef3f6;
+      color: var(--muted);
+      font-size: .65rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      flex-shrink: 0;
+      padding: .2rem;
+    }
+    #lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(0,0,0,.88);
+      padding: 1rem;
+      align-items: center;
+      justify-content: center;
+    }
+    #lightbox.show { display: flex; }
+    #lightbox img {
+      max-width: 100%;
+      max-height: 90vh;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    #lightbox .close-lb {
+      position: absolute;
+      top: .75rem;
+      right: .75rem;
+    }
+    #result .ref-photo {
+      margin-top: .75rem;
+      max-width: 100%;
+      max-height: 220px;
+      border-radius: 8px;
+      display: block;
+      cursor: pointer;
     }
     .item.expired { border-color: #e08a8a; background: #fff5f5; }
     .item .p { font-weight: 700; letter-spacing: .06em; font-size: 1.05rem; }
@@ -234,6 +288,11 @@
     </div>
 
     <div id="result"></div>
+
+    <div id="lightbox">
+      <button type="button" class="danger close-lb" id="closeLightbox">Close</button>
+      <img id="lightboxImg" alt="Vehicle reference" />
+    </div>
 
     <h2>No permit (2-hour)</h2>
     <div id="noPermitList"><p class="empty">None</p></div>
@@ -318,6 +377,7 @@
     const previewWrap = document.getElementById("previewWrap");
     const cropPreview = document.getElementById("cropPreview");
     let stream = null;
+    let lastCaptureDataUrl = "";
 
     function getToken() {
       return (localStorage.getItem(TOKEN_KEY) || "").trim();
@@ -344,7 +404,17 @@
     }
 
     function saveNoPermit(list) {
-      localStorage.setItem(STORE_KEY, JSON.stringify(list));
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(list));
+      } catch {
+        const slim = list.map(({ photo, ...rest }, i) => i < 8 ? { ...rest, photo } : rest);
+        try {
+          localStorage.setItem(STORE_KEY, JSON.stringify(slim));
+        } catch {
+          localStorage.setItem(STORE_KEY, JSON.stringify(list.map(({ photo, ...rest }) => rest)));
+          setStatus("Storage full — photos dropped, plates kept");
+        }
+      }
     }
 
     function formatRemain(ms) {
@@ -356,9 +426,38 @@
       return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
     }
 
-    function showResult(ok, plate, detail) {
+    function openLightbox(src) {
+      if (!src) return;
+      document.getElementById("lightboxImg").src = src;
+      document.getElementById("lightbox").classList.add("show");
+    }
+
+    function closeLightbox() {
+      document.getElementById("lightbox").classList.remove("show");
+      document.getElementById("lightboxImg").removeAttribute("src");
+    }
+
+    function showResult(ok, plate, detail, photo) {
       resultEl.className = "show " + (ok ? "ok" : "bad");
-      resultEl.innerHTML = `<div class="plate">${plate}</div><div class="meta">${detail}</div>`;
+      const img = !ok && photo
+        ? `<img class="ref-photo" src="${photo}" alt="Vehicle reference" data-full="1" />`
+        : "";
+      resultEl.innerHTML = `<div class="plate">${plate}</div><div class="meta">${detail}</div>${img}`;
+      const ref = resultEl.querySelector(".ref-photo");
+      if (ref) ref.addEventListener("click", () => openLightbox(photo));
+    }
+
+    async function blobToDataUrl(blob, maxW = 900, quality = 0.72) {
+      const bmp = await createImageBitmap(blob);
+      const scale = Math.min(1, maxW / bmp.width);
+      const w = Math.max(1, Math.round(bmp.width * scale));
+      const h = Math.max(1, Math.round(bmp.height * scale));
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      c.getContext("2d").drawImage(bmp, 0, 0, w, h);
+      bmp.close();
+      return c.toDataURL("image/jpeg", quality);
     }
 
     function checkPlate(raw) {
@@ -376,12 +475,22 @@
       }
       let list = loadNoPermit();
       const existing = list.find((x) => x.plate === plate);
+      const photo = lastCaptureDataUrl || (existing && existing.photo) || "";
       if (existing) {
-        showResult(false, plate, "NO PERMIT — already tracked · " + formatRemain(existing.expiresAt - Date.now()));
+        if (lastCaptureDataUrl) {
+          existing.photo = lastCaptureDataUrl;
+          saveNoPermit(list);
+        }
+        showResult(false, plate, "NO PERMIT — already tracked · " + formatRemain(existing.expiresAt - Date.now()), existing.photo || photo);
       } else {
-        list.unshift({ plate, startedAt: Date.now(), expiresAt: Date.now() + TWO_HOURS });
+        list.unshift({
+          plate,
+          startedAt: Date.now(),
+          expiresAt: Date.now() + TWO_HOURS,
+          photo: lastCaptureDataUrl || ""
+        });
         saveNoPermit(list);
-        showResult(false, plate, "NO PERMIT — 2-hour countdown started");
+        showResult(false, plate, "NO PERMIT — 2-hour countdown started", lastCaptureDataUrl || "");
       }
       setStatus("");
       renderList();
@@ -402,16 +511,25 @@
       listEl.innerHTML = "<ul>" + list.map((x) => {
         const left = x.expiresAt - now;
         const expired = left <= 0;
+        const thumb = x.photo
+          ? `<img class="thumb" src="${x.photo}" alt="" data-photo="1" />`
+          : `<div class="no-photo">No photo</div>`;
         return `<li class="item${expired ? " expired" : ""}" data-plate="${x.plate}">
-          <div>
-            <div class="p">${x.plate}</div>
-            <div class="t">${formatRemain(left)}</div>
+          <div class="item-main">
+            ${thumb}
+            <div>
+              <div class="p">${x.plate}</div>
+              <div class="t">${formatRemain(left)}</div>
+            </div>
           </div>
           <button type="button" class="danger removeBtn">Remove</button>
         </li>`;
       }).join("") + "</ul>";
       listEl.querySelectorAll(".removeBtn").forEach((btn) => {
         btn.addEventListener("click", () => removePlate(btn.closest(".item").dataset.plate));
+      });
+      listEl.querySelectorAll(".thumb").forEach((img) => {
+        img.addEventListener("click", () => openLightbox(img.src));
       });
     }
 
@@ -477,7 +595,8 @@
     }
 
     async function processImageBlob(blob) {
-      showPreviewUrl(URL.createObjectURL(blob));
+      lastCaptureDataUrl = await blobToDataUrl(blob);
+      showPreviewUrl(lastCaptureDataUrl);
       showCandidates([]);
       plateInput.focus();
 
@@ -588,6 +707,10 @@
       setStatus("");
     });
     document.getElementById("closePreview").addEventListener("click", hidePreview);
+    document.getElementById("closeLightbox").addEventListener("click", closeLightbox);
+    document.getElementById("lightbox").addEventListener("click", (e) => {
+      if (e.target.id === "lightbox") closeLightbox();
+    });
     document.getElementById("saveToken").addEventListener("click", () => {
       const v = document.getElementById("apiToken").value.trim();
       if (v) localStorage.setItem(TOKEN_KEY, v);
@@ -596,10 +719,23 @@
       setStatus(v ? "Token saved" : "Token cleared");
     });
 
+    function tickTimers() {
+      const now = Date.now();
+      listEl.querySelectorAll(".item").forEach((item) => {
+        const plate = item.dataset.plate;
+        const entry = loadNoPermit().find((x) => x.plate === plate);
+        if (!entry) return;
+        const left = entry.expiresAt - now;
+        const t = item.querySelector(".t");
+        if (t) t.textContent = formatRemain(left);
+        item.classList.toggle("expired", left <= 0);
+      });
+    }
+
     refreshTokenStatus();
     renderPermitBrowse();
     renderList();
-    setInterval(renderList, 1000);
+    setInterval(tickTimers, 1000);
   </script>
 </body>
 </html>
